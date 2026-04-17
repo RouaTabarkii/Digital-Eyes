@@ -1,0 +1,15 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 5
+names: ['Taxi', 'Crosswalks',"Door","Fire","Wall"]
+
+roboflow:
+
+  workspace: rouas-workspace
+  project: taxi-ffpjf-zr76u
+  version: 1
+  license: CC BY 4.0
+  url: https://app.roboflow.com/rouas-workspace/taxi-ffpjf-zr76u/1
+  url : https://universe.roboflow.com/rouas-workspace/taxi-ffpjf-zr76u/dataset/1
