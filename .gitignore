@@ -1,37 +1,15 @@
-
-
-
-# Virtual environments
-
-YOLO/Lib/
-
-YOLO/Scripts/
-
-venv/
-
-env/
-
-# Python cache
-
-__pycache__/
-
-*.pyc
-
-*.pyd
-
-*.pyo
-
-# Large model files
-
-*.dll
-
-*.pt
-
-*.pth
-
-*.onnx
-
-# Training outputs
-
 runs/
-
+data/
+YOLO/Lib/
+YOLO/Scripts/
+venv/
+__pycache__/
+*.pyc
+*.pt
+*.pth
+*.dll
+*.pyd
+*.jpg
+*.png
+*.csv
+.ipynb_checkpoints/
