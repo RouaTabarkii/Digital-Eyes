@@ -1,0 +1,37 @@
+
+
+
+# Virtual environments
+
+YOLO/Lib/
+
+YOLO/Scripts/
+
+venv/
+
+env/
+
+# Python cache
+
+__pycache__/
+
+*.pyc
+
+*.pyd
+
+*.pyo
+
+# Large model files
+
+*.dll
+
+*.pt
+
+*.pth
+
+*.onnx
+
+# Training outputs
+
+runs/
+
