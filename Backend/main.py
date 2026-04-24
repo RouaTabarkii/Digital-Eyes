@@ -1,15 +1,18 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
+from fastapi.responses import FileResponse
 
 app = FastAPI()
 
-@app.get("/DigitalEyes") 
-def root() :
-        return {""}
+@app.post("/listen")
+async def listen(
+    audio: UploadFile = File(...),
+    video: UploadFile = File(...)
+):
+    
 
-@app.post("/DigitalEyes")
-def root() :
-    return {"message": "Hello World"}
+    
+    # 1. STT ici
+    # 2. Model 1 ou Model 2 ici
+    # 3. TTS ici
 
-@app.get("/DigitalEyes/{id}")
-def root(id: int) :
-    return {"message": f"Hello World {id}"}
+    return FileResponse("response.mp3", media_type="audio/mpeg")
