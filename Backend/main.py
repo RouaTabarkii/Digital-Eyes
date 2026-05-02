@@ -10,9 +10,6 @@ async def listen(
 ):
     
 
-    
-    # 1. STT ici
-    # 2. Model 1 ou Model 2 ici
-    # 3. TTS ici
 
+    
     return FileResponse("response.mp3", media_type="audio/mpeg")
