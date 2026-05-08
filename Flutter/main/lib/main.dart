@@ -86,7 +86,7 @@ class _MyHomePageState extends State<MyHomePage> {
       });
 
       final response = await dio.post(
-        'http://192.168.0.98:8000/listen',
+        'http://192.168.56.1:8000/listen',
         data: formData,
       );
 
@@ -143,7 +143,7 @@ class _MyHomePageState extends State<MyHomePage> {
       });
 
       final response = await dio.post(
-        'http://192.168.0.98:8000/predict',
+        'http://192.168.56.1:8000/predict',
         data: formData,
       );
 
