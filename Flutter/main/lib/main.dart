@@ -1,9 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:dio/dio.dart';
 import 'package:camera/camera.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'dart:math' as math;
 
 void main() async {
@@ -28,7 +30,6 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
-        fontFamily: 'Poppins', // Assurez-vous d'avoir la police ou utilisez System
       ),
       home: MyHomePage(cameras: cameras),
     );
@@ -48,6 +49,7 @@ class _MyHomePageState extends State<MyHomePage>
 
   final AudioRecorder _recorder = AudioRecorder();
   final Dio _dio = Dio();
+  final AudioPlayer _audioPlayer = AudioPlayer(); // ← NOUVEAU
 
   String _status = 'Initializing...';
   String _model = '';
@@ -57,14 +59,13 @@ class _MyHomePageState extends State<MyHomePage>
   late AnimationController _pulseController;
   late Animation<double> _pulseAnim;
 
-  // ─── NOUVEAU SCHÉMA DE COULEURS ──────────────────
-  static const Color kPrimary    = Color(0xFF6C63FF); // Violet vif
-  static const Color kSecondary  = Color(0xFFFF6584); // Rose corail
-  static const Color kBg         = Color(0xFF0A0A1A); // Bleu nuit profond
-  static const Color kSurface    = Color(0xFF1E1E2F); // Gris foncé avec touche violette
-  static const Color kSuccess    = Color(0xFF4CD964); // Vert pomme
-  static const Color kDanger     = Color(0xFFFF3B5C); // Rouge vif
-  static const Color kWarn       = Color(0xFFFFCC00); // Jaune or
+  static const Color kPrimary   = Color(0xFF6C63FF);
+  static const Color kSecondary = Color(0xFFFF6584);
+  static const Color kBg        = Color(0xFF0A0A1A);
+  static const Color kSurface   = Color(0xFF1E1E2F);
+  static const Color kSuccess   = Color(0xFF4CD964);
+  static const Color kDanger    = Color(0xFFFF3B5C);
+  static const Color kWarn      = Color(0xFFFFCC00);
 
   @override
   void initState() {
@@ -142,34 +143,51 @@ class _MyHomePageState extends State<MyHomePage>
     }
   }
 
+  // ← FONCTION MODIFIÉE
   Future<void> _sendImage(String path) async {
     try {
       final form = FormData.fromMap({
         'image': await MultipartFile.fromFile(path),
         'model': _model,
       });
+
+      // Recevoir l'audio en bytes
       final res = await _dio.post(
         'http://192.168.0.98:8000/predict',
         data: form,
+        options: Options(responseType: ResponseType.bytes), // ← IMPORTANT
       );
-      if (mounted) setState(() => _status = '${res.data['result']}');
-      await Future.delayed(const Duration(seconds: 3));
-    } catch (_) {
-      if (mounted) setState(() => _status = 'Analysis error');
+
+      if (!mounted) return;
+      setState(() => _status = 'Playing result...');
+
+      // Sauvegarder l'audio reçu dans un fichier temporaire
+      final dir = await getTemporaryDirectory();
+      final audioPath = '${dir.path}/result.wav';
+      final audioFile = File(audioPath);
+      await audioFile.writeAsBytes(res.data);
+
+      // Jouer l'audio
+      await _audioPlayer.play(DeviceFileSource(audioPath));
+
+      // Attendre la fin de la lecture
+      await Future.delayed(const Duration(seconds: 4));
+
+    } catch (e) {
+      if (mounted) setState(() => _status = 'Analysis error: $e');
     }
   }
 
-  // ─── HELPERS (couleurs adaptées au nouveau thème) ───
   Color get _statusColor {
     if (_status.contains('error') || _status.contains('denied')) return kDanger;
-    if (_status.contains('selected') || _status.contains('result')) return kSuccess;
+    if (_status.contains('selected') || _status.contains('Playing')) return kSuccess;
     if (_status.contains('Analyzing')) return kWarn;
     return kPrimary;
   }
 
   Color get _modelColor {
-    if (_model == 'CNN')  return const Color(0xFFB794F4); // Lavande
-    if (_model == 'YOLO') return const Color(0xFFFFB74D); // Orange doux
+    if (_model == 'CNN')  return const Color(0xFFB794F4);
+    if (_model == 'YOLO') return const Color(0xFFFFB74D);
     if (_model == 'HSV')  return kSuccess;
     return kPrimary;
   }
@@ -179,11 +197,11 @@ class _MyHomePageState extends State<MyHomePage>
     if (_status.contains('Camera'))     return Icons.camera_alt_outlined;
     if (_status.contains('Analyzing') || _status.contains('Capturing'))
       return Icons.biotech_rounded;
+    if (_status.contains('Playing'))    return Icons.volume_up_rounded;
     if (_status.contains('error') || _status.contains('denied'))
       return Icons.warning_amber_rounded;
     return Icons.check_circle_outline_rounded;
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -191,13 +209,11 @@ class _MyHomePageState extends State<MyHomePage>
       backgroundColor: kBg,
       body: Stack(
         children: [
-          // Fond avec points décoratifs subtils
           Positioned.fill(
             child: CustomPaint(
               painter: _BackgroundDotsPainter(),
             ),
           ),
-          // Contenu principal
           SafeArea(
             child: Column(
               children: [
@@ -221,8 +237,7 @@ class _MyHomePageState extends State<MyHomePage>
       child: Row(
         children: [
           Container(
-            width: 46,
-            height: 46,
+            width: 46, height: 46,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [kPrimary, kSecondary],
@@ -230,42 +245,16 @@ class _MyHomePageState extends State<MyHomePage>
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: kPrimary.withOpacity(0.4),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              boxShadow: [BoxShadow(color: kPrimary.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))],
             ),
-            child: const Icon(
-              Icons.visibility_rounded,
-              color: Colors.white,
-              size: 24,
-            ),
+            child: const Icon(Icons.visibility_rounded, color: Colors.white, size: 24),
           ),
           const SizedBox(width: 14),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Digital Eyes',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.3,
-                ),
-              ),
-              Text(
-                'AI VISION ASSISTANT',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.45),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.2,
-                ),
-              ),
+              const Text('Digital Eyes', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
+              Text('AI VISION ASSISTANT', style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 1.2)),
             ],
           ),
           const Spacer(),
@@ -278,32 +267,9 @@ class _MyHomePageState extends State<MyHomePage>
             ),
             child: Row(
               children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 800),
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: kSuccess,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: kSuccess.withOpacity(0.8),
-                        blurRadius: 6,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                ),
+                Container(width: 7, height: 7, decoration: BoxDecoration(color: kSuccess, shape: BoxShape.circle)),
                 const SizedBox(width: 6),
-                Text(
-                  'LIVE',
-                  style: TextStyle(
-                    color: kSuccess,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.2,
-                  ),
-                ),
+                Text('LIVE', style: TextStyle(color: kSuccess, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
               ],
             ),
           ),
@@ -322,50 +288,10 @@ class _MyHomePageState extends State<MyHomePage>
                 fit: StackFit.expand,
                 children: [
                   CameraPreview(_cameraController!),
-                  // Overlay avec coins plus fins
-                  Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.2),
-                          width: 1,
-                        ),
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 16,
-                    left: 16,
-                    child: _cornerWidget(),
-                  ),
-                  Positioned(
-                    top: 16,
-                    right: 16,
-                    child: Transform(
-                      alignment: Alignment.center,
-                      transform: Matrix4.rotationY(3.14159),
-                      child: _cornerWidget(),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 16,
-                    left: 16,
-                    child: Transform(
-                      alignment: Alignment.center,
-                      transform: Matrix4.rotationX(3.14159),
-                      child: _cornerWidget(),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 16,
-                    right: 16,
-                    child: Transform(
-                      alignment: Alignment.center,
-                      transform: Matrix4.rotationZ(3.14159),
-                      child: _cornerWidget(),
-                    ),
-                  ),
+                  Positioned(top: 16, left: 16, child: _cornerWidget()),
+                  Positioned(top: 16, right: 16, child: Transform(alignment: Alignment.center, transform: Matrix4.rotationY(3.14159), child: _cornerWidget())),
+                  Positioned(bottom: 16, left: 16, child: Transform(alignment: Alignment.center, transform: Matrix4.rotationX(3.14159), child: _cornerWidget())),
+                  Positioned(bottom: 16, right: 16, child: Transform(alignment: Alignment.center, transform: Matrix4.rotationZ(3.14159), child: _cornerWidget())),
                 ],
               )
             : Container(
@@ -379,83 +305,38 @@ class _MyHomePageState extends State<MyHomePage>
                         builder: (context, child) => Stack(
                           alignment: Alignment.center,
                           children: [
-                            // Cercle extérieur (pulsation)
                             Transform.scale(
                               scale: _pulseAnim.value,
                               child: Container(
-                                width: 170,
-                                height: 170,
+                                width: 170, height: 170,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  gradient: RadialGradient(
-                                    colors: [
-                                      kPrimary.withOpacity(0.2),
-                                      Colors.transparent,
-                                    ],
-                                    stops: const [0.6, 1.0],
-                                  ),
+                                  gradient: RadialGradient(colors: [kPrimary.withOpacity(0.2), Colors.transparent], stops: const [0.6, 1.0]),
                                 ),
                               ),
                             ),
-                            // Cercle médian
                             Container(
-                              width: 120,
-                              height: 120,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: kPrimary.withOpacity(0.3),
-                                  width: 1.5,
-                                ),
-                              ),
+                              width: 120, height: 120,
+                              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: kPrimary.withOpacity(0.3), width: 1.5)),
                             ),
-                            // Bouton principal
                             Container(
-                              width: 80,
-                              height: 80,
+                              width: 80, height: 80,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [kPrimary, kSecondary],
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: kPrimary.withOpacity(0.5),
-                                    blurRadius: 25,
-                                    spreadRadius: 5,
-                                  ),
-                                ],
+                                gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [kPrimary, kSecondary]),
+                                boxShadow: [BoxShadow(color: kPrimary.withOpacity(0.5), blurRadius: 25, spreadRadius: 5)],
                               ),
-                              child: const Icon(
-                                Icons.mic_rounded,
-                                color: Colors.white,
-                                size: 34,
-                              ),
+                              child: const Icon(Icons.mic_rounded, color: Colors.white, size: 34),
                             ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 30),
-                      const Text(
-                        'say something...',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                      const Text('say something...', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 8),
-                      Text(
-                        '"soda" → CNN   •   "color" → HSV   •   other → YOLO',
+                      Text('"soda" → CNN   •   "color" → HSV   •   other → YOLO',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.35),
-                          fontSize: 11,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
+                        style: TextStyle(color: Colors.white.withOpacity(0.35), fontSize: 11, letterSpacing: 0.4)),
                     ],
                   ),
                 ),
@@ -466,13 +347,9 @@ class _MyHomePageState extends State<MyHomePage>
 
   Widget _cornerWidget() {
     return Container(
-      width: 24,
-      height: 24,
+      width: 24, height: 24,
       decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: kSecondary, width: 2.5),
-          left: BorderSide(color: kSecondary, width: 2.5),
-        ),
+        border: Border(top: BorderSide(color: kSecondary, width: 2.5), left: BorderSide(color: kSecondary, width: 2.5)),
       ),
     );
   }
@@ -485,36 +362,18 @@ class _MyHomePageState extends State<MyHomePage>
         color: kSurface.withOpacity(0.7),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: _statusColor.withOpacity(0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: _statusColor.withOpacity(0.1),
-            blurRadius: 12,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: _statusColor.withOpacity(0.1), blurRadius: 12, offset: const Offset(0, 2))],
       ),
       child: Row(
         children: [
           Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: _statusColor.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
+            width: 38, height: 38,
+            decoration: BoxDecoration(color: _statusColor.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
             child: Icon(_statusIcon, color: _statusColor, size: 20),
           ),
           const SizedBox(width: 14),
           Expanded(
-            child: Text(
-              _status,
-              style: TextStyle(
-                color: _statusColor,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0.2,
-              ),
-            ),
+            child: Text(_status, style: TextStyle(color: _statusColor, fontSize: 14, fontWeight: FontWeight.w500, letterSpacing: 0.2)),
           ),
         ],
       ),
@@ -536,25 +395,11 @@ class _MyHomePageState extends State<MyHomePage>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [_modelColor, _modelColor.withOpacity(0.7)],
-                ),
+                gradient: LinearGradient(colors: [_modelColor, _modelColor.withOpacity(0.7)]),
                 borderRadius: BorderRadius.circular(40),
-                boxShadow: [
-                  BoxShadow(
-                    color: _modelColor.withOpacity(0.3),
-                    blurRadius: 8,
-                  ),
-                ],
+                boxShadow: [BoxShadow(color: _modelColor.withOpacity(0.3), blurRadius: 8)],
               ),
-              child: Text(
-                '$_model active',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              child: Text('$_model active', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
             ),
         ],
       ),
@@ -568,20 +413,9 @@ class _MyHomePageState extends State<MyHomePage>
       decoration: BoxDecoration(
         color: active ? color.withOpacity(0.2) : Colors.transparent,
         borderRadius: BorderRadius.circular(40),
-        border: Border.all(
-          color: active ? color.withOpacity(0.6) : Colors.white.withOpacity(0.1),
-          width: 1.2,
-        ),
+        border: Border.all(color: active ? color.withOpacity(0.6) : Colors.white.withOpacity(0.1), width: 1.2),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: active ? color : Colors.white.withOpacity(0.4),
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.8,
-        ),
-      ),
+      child: Text(label, style: TextStyle(color: active ? color : Colors.white.withOpacity(0.4), fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
     );
   }
 
@@ -590,6 +424,7 @@ class _MyHomePageState extends State<MyHomePage>
     _pulseController.dispose();
     _recorder.dispose();
     _cameraController?.dispose();
+    _audioPlayer.dispose(); // ← NOUVEAU
     super.dispose();
   }
 }
@@ -597,9 +432,7 @@ class _MyHomePageState extends State<MyHomePage>
 class _BackgroundDotsPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withOpacity(0.03)
-      ..style = PaintingStyle.fill;
+    final paint = Paint()..color = Colors.white.withOpacity(0.03)..style = PaintingStyle.fill;
     final random = math.Random(42);
     for (int i = 0; i < 200; i++) {
       final x = random.nextDouble() * size.width;

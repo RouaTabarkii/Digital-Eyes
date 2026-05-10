@@ -1,10 +1,11 @@
 # from unittest import result
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, Response, UploadFile, File, Form
 import shutil
 import sys
 from PIL import Image
 import cv2
-from matplotlib import transforms
+import httpx
+from torchvision import transforms  
 import torch
 import os
 import whisper
@@ -23,9 +24,9 @@ yolo_model = YOLO("YOLO\code\yolo11n.pt")
 app = FastAPI()
 
 
+# cnn_model.to(device)
+# cnn_model.eval()
 
-cnn_model.to(device)
-cnn_model.eval()
 
 test_transform = transforms.Compose([
     transforms.Resize((224, 224)),
@@ -87,16 +88,24 @@ async def predict(
 
     if model == "CNN":
         image = Image.open(image_path).convert("RGB")  
-        image = test_transform(image).unsqueeze(0).to(device)  # ✅ transform + batch + GPU
-        with torch.no_grad():                          # ✅ pas de gradient
+        image = test_transform(image).unsqueeze(0).to(device)
+        with torch.no_grad():
             outputs = cnn_model(image)
             _, predicted = torch.max(outputs, 1)
             rst = classes[predicted.item()]  
     elif model == "YOLO":  
         results = yolo_model.predict(image_path)
         rst = results[0].verbose()
+        rst = "in front of you there is" + rst 
     elif model == "HSV":
         rst = HSV_predict(image_path)
-    return {"result" : rst}
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        tts_response = await client.post(
+            "http://localhost:8001/tts",
+            params={"text": rst}
+        )
+
+    return Response(content=tts_response.content, media_type="audio/wav")
 
 
