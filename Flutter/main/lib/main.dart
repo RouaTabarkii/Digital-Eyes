@@ -108,7 +108,7 @@ class _MyHomePageState extends State<MyHomePage>
         'audio': await MultipartFile.fromFile(path),
       });
       final res = await _dio.post(
-        'http://10.10.169.141:8000/listen',
+        'http://192.168.56.1:8000/listen',
         data: form,
       );
       if (!mounted) return;
@@ -153,7 +153,7 @@ class _MyHomePageState extends State<MyHomePage>
 
       // Recevoir l'audio en bytes
       final res = await _dio.post(
-        'http://10.10.169.141:8000/predict',
+        'http://192.168.56.1:8000/predict',
         data: form,
         options: Options(responseType: ResponseType.bytes), // ← IMPORTANT
       );
