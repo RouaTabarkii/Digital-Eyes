@@ -20,7 +20,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 model_stt = whisper.load_model("base")
 cnn_model = torch.load("../CNNmodel/code/model.pt", map_location=device)
-yolo_model = YOLO("runs/detect/train/weights/best.pt")
+yolo_model = YOLO("../runs/detect/train7/weights/best.pt")
 app = FastAPI()
 
 
