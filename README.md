@@ -17,3 +17,7 @@ person recognition, and real-time interaction with the system.
 - **Image Classification**: CNN from scratch
 -  **Color Detection**: HSV (OpenCV)
 - **Speech**: TTS & STT
+
+## 📂 Branches
+- `main` — project overview (README)
+- `CNN` — full source code
